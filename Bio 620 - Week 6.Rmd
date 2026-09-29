@@ -1,0 +1,79 @@
+---
+title: "Bio 620 - Week 6"
+author: "Laura Fisher"
+date: "2026-09-29"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(AICcmodavg)
+library(MuMIn)
+```
+
+```{r}
+# Week 6 Assignment 4: Investigate the relative importance of Inhibitor, Cell Line, VHL status, and Concentration of Inhibitor on Percent Survival.
+
+setwd("~/OneDrive - Adelphi University/Bio 620 Datasets")
+data <- read.csv("Cell_Inhibition_Schoenfeld.csv", header = TRUE)
+```
+
+```{r}
+#create at least an intercept and at least 10 models of different predictor combinations; calculate AICC for each
+intercept.model <- lm(PercentSurvival ~ 1, data = data)
+AICc(intercept.model) #4144.233
+summary(intercept.model) #already significant? 
+full.model <- lm(PercentSurvival ~ Inhibitor * Cell.Line * VHL * Concentration.uM, data = data,)
+AICc(full.model) #3897.639
+summary(full.model) #no interaction terms look significant, so I will drop the interactions
+
+model2 <- lm(PercentSurvival ~ Inhibitor + Cell.Line + VHL + Concentration.uM, data = data)
+AICc(model2) #3896.3, a little bit better but not by much (dAICc <2)
+summary(model2) #drop VHL 
+model3 <- lm(PercentSurvival ~ Inhibitor + Cell.Line + Concentration.uM, data = data)
+AICc(model3) #3900.032 #it got worse...., put VHL back in and try dropping cell line
+model4 <- lm(PercentSurvival ~ Inhibitor + VHL + Concentration.uM, data = data)
+AICc(model4) #3900.467, also not as good as model 2. 
+#maybe drop both and see how only two parameters does? 
+model5 <- lm(PercentSurvival ~ Inhibitor + Concentration.uM, data = data)
+AICc(model5) #3904.117, it keeps getting worse :(
+
+#erm I guess try adding in interaction terms one by one back into model 2, beginning with inhibitor interactions
+model6 <- lm(PercentSurvival ~ Inhibitor*Cell.Line + VHL + Concentration.uM, data = data)
+AICc(model6) #3896.3, same as model 2...
+model7 <- lm(PercentSurvival ~ Inhibitor*VHL + Cell.Line + Concentration.uM, data = data)
+AICc(model7) #3887.887 omg this one is actually better than model2 (dAICc = -8.413 !!)
+model8 <- lm(PercentSurvival ~ Inhibitor*Concentration.uM + Cell.Line + VHL, data = data)
+AICc(model8) #3898.366 this one is worse so we don't want concentration to interact with inhibitor
+
+#now take model7 (the new best) and add in Cell.Line interaction ?
+model9 <- lm(PercentSurvival ~ Inhibitor * VHL * Cell.Line + Concentration.uM, data = data)
+AICc(model9) #3888.065, this one is only marginally worse than model7 (dAICc = 0.178) BUT this one is more complicated so may as well just not worry about it. 
+
+#try just VHL * Cell Line interaction just in case ? 
+model10 <- lm(PercentSurvival ~ Inhibitor + VHL * Cell.Line + Concentration.uM, data = data)
+AICc(model10) #3890.528, worse than both model7 and model9 
+```
+
+```{r}
+#final model is model 7! lm(PercentSurvival ~ Inhibitor * VHL + Cell.Line + Concentration.uM, data = data)
+# I worked in a stepwise (changing one term at a time), top-down fashion, eliminating terms from the full model based on apparent significance (using the summary function) and the AICc. Once I found a model that had a lower AICc than a previously tested model I would keep whatever change I had made and continue testing out changes and comparing AICc values. 
+summary(model7)
+#the summary of model7 indicated that Concentration is highly significant in reducing (bc estimate is negative) percent survival, along with Cell Line RCC10 having significantly decreased survival. In contrast, the interaction between Inhibitor GNE-140 and VHL+ significantly increases percent survival (p = 0.00132)
+```
+
+```{r}
+#trying out the dredge function 
+full.model <- lm(PercentSurvival ~ Inhibitor * Cell.Line * VHL * Concentration.uM, data = data, na.action = na.fail)
+dredge(full.model, evaluate = TRUE)
+
+#the top 5 models are all essentially the same (dAIC = 0 - 0.18). 
+#528 ~ Cell.Line + Concentration.uM + Inhibitor + VHL + Inhibitor:VHL (my final model!!)
+#560 ~ Cell.Line + Concentration.uM + Inhibitor + VHL + Cell.Line:Inhibitor + Inhibitor:VHL
+#592 ~ Cell.Line + Concentration.uM + Inhibitor + VHL + Cell.Line:VHL + Inhibitor:VHL
+#624 ~ Cell.Line + Concentration.uM + Inhibitor + VHL + Cell.Line:Inhibitor + Cell.Line:VHL + Inhibitor:VHL
+#4720 ~ Cell.Line + Concentration.uM + Inhibitor + VHL + Cell.Line:Inhibitor + Cell.Line:VHL + Inhibitor:VHL + Cell.Line:VHL:Inhibitor (my model 9, which was runner up!)
+```
+
